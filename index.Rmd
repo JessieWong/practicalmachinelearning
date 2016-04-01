@@ -1,0 +1,122 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Jessie"
+output: html_document
+---
+Background
+===========
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. 
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of this project is to predict the manner in which the participants did the exercise. This is the "classe" variable of the training set, which classifies the correct and incorrect outcomes into A, B, C, D, and E categories. This report describes how the model for the project was built, its cross validation, expected out of sample error calculation, and the choices made. 
+
+Data Description
+==================
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+We first download the data from the links referenced above to our computer and upload the files into R (using RStudio), interpreting the miscellaneous NA, #DIV/0! and empty fields as NA.
+
+####Set working directory
+setwd('C:/Users/jwong/Desktop/coursera/machine learning')
+
+####Set up the environment using the following chunk
+```{r}
+rm(list=ls()) #remove all data store in the Data Environment
+#all the packages that we will use 
+library(ggplot2)
+library(lattice)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+####Download the file from the url given
+url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+
+f <- file.path(getwd(), "pml-training.csv")
+
+download.file(url, f)
+
+url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+f2 <- file.path(getwd(), "pml-testing.csv")
+
+download.file(url2, f2)
+
+####Name the file
+```{r}
+training<-read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!"))
+testing<-read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!"))
+```
+
+####We take a quick look at the data
+```{r}
+str(training)
+str(testing)
+```
+Data Manipulation
+==================
+Based on the above information, let's first do some basic data clean-up by removing columns 1 to 6, which are there just for information and reference purposes
+
+```{r}
+training <- training[, 7:160]
+testing  <- testing[, 7:160]
+```
+
+There are also "NA" in many columns. I removed all columns that are mostly NA.
+
+```{r}
+is_data  <- apply(!is.na(training), 2, sum) > 19621  # which is the number of observations
+training <- training[, is_data]
+testing  <- testing[, is_data]
+```
+
+####Cross validation
+We split our testing data into sub groups. We randomly subsample 60% of the set for training purposes
+(actual model building), while the 40% remainder will be used only for testing, evaluation and accuracy measurement.
+
+```{r}
+subgroup <- createDataPartition(y=training$classe, p=0.6, list=FALSE)
+subTraining <- training[subgroup,]
+subTesting <- training[-subgroup, ]
+```
+We are satisfied that we now have 53 clean covariates to build a model for classe.
+```{r}
+dim(subTraining);dim(subTesting)
+```
+
+Modeling
+==========
+####We are using a Random Forest algorithm. I pick all the variables and see how the accuracy is.
+set.seed(5003)
+```{r}
+model <- randomForest(classe~., data=subTraining,method='class',ntree=50)
+varImpPlot(model)
+```
+
+Evaluate the model on the training dataset
+============================================
+```{r}
+pred=predict(model,subTesting, type='class')
+z=confusionMatrix(pred,subTesting$classe)
+```
+####The accuracy is shown below, which is more than 99% and it's very impressive
+```{r}
+OverallAccuracy <- z$overall['Accuracy']
+OverallAccuracy
+```
+###Let's look at Confusion Matrix and Statistics
+```{r}
+z
+```
+###Out-of-sample error rate
+The Random Forest's out-of-sample error rate is derived by the formula 100% - Accuracy
+```{r}
+1-OverallAccuracy
+```
